@@ -240,9 +240,13 @@
 <body>
 
 <div id="loader" class="loader">
-    <div class="text-center">
-        <div class="spinner-border text-primary" role="status"></div>
-        <div class="mt-2 fw-bold">Пожалуйста, подождите...</div>
+    <div class="text-center" style="width: 80%; max-width: 300px;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <div class="fw-bold mb-3" style="color: #424B51; font-size: 1.1rem;">Загрузка данных...</div>
+        <div class="progress" style="height: 8px; border-radius: 10px; background: #e9ecef; overflow: hidden;">
+            <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%; background: #DF3B20; transition: width 0.3s ease; border-radius: 10px;"></div>
+        </div>
+        <div id="progressText" class="mt-2 fw-bold" style="color: #424B51; font-size: 0.9rem;">0%</div>
     </div>
 </div>
 
@@ -300,23 +304,32 @@
         
         if (!login || !pass) return alert("Заполните все поля");
         
-        showLoader(true);
+        showLoader(true, 'Авторизация...');
+        updateProgress(20);
+        
         try {
+            await new Promise(resolve => setTimeout(resolve, 200));
+            updateProgress(40);
+            
             const response = await fetch(`${WEB_APP_URL}?action=login&login=${encodeURIComponent(login)}&pass=${encodeURIComponent(pass)}`);
+            updateProgress(70);
             const res = await response.json();
+            updateProgress(90);
             
             if(res.success) {
                 currentUser = res;
                 localStorage.setItem('mp_user', JSON.stringify(res));
+                updateProgress(100);
+                await new Promise(resolve => setTimeout(resolve, 200));
                 showMain();
                 loadMonths();
             } else {
+                showLoader(false);
                 alert("Ошибка: Неверный логин или пароль");
             }
         } catch (e) {
-            alert("Ошибка связи с сервером. Проверьте интернет.");
-        } finally {
             showLoader(false);
+            alert("Ошибка связи с сервером. Проверьте интернет.");
         }
     }
 
@@ -341,8 +354,19 @@
 
     // Загрузка списка месяцев из таблицы
     async function loadMonths() {
+        showLoader(true, 'Загрузка списка месяцев...');
+        updateProgress(10);
+        
         try {
+            // Симуляция прогресса загрузки
+            const progressSteps = [20, 40, 60, 80];
+            for (let i = 0; i < progressSteps.length; i++) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                updateProgress(progressSteps[i]);
+            }
+            
             const response = await fetch(`${WEB_APP_URL}?action=getMonths`);
+            updateProgress(90);
             const months = await response.json();
             const select = document.getElementById('monthSelect');
             
@@ -354,7 +378,14 @@
                 opt.innerText = m;
                 select.appendChild(opt);
             });
-        } catch (e) { console.error("Ошибка загрузки месяцев", e); }
+            
+            updateProgress(100);
+            await new Promise(resolve => setTimeout(resolve, 200));
+            showLoader(false);
+        } catch (e) { 
+            console.error("Ошибка загрузки месяцев", e);
+            showLoader(false);
+        }
     }
 
     // Загрузка клиентов по выбранному месяцу
@@ -362,12 +393,24 @@
         const month = document.getElementById('monthSelect').value;
         if (!month) return;
         
-        showLoader(true);
+        showLoader(true, 'Загрузка списка клиентов...');
+        updateProgress(10);
+        
         try {
+            // Симуляция прогресса загрузки
+            const progressSteps = [20, 40, 60];
+            for (let i = 0; i < progressSteps.length; i++) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                updateProgress(progressSteps[i]);
+            }
+            
             const response = await fetch(`${WEB_APP_URL}?action=getClients&mpName=${encodeURIComponent(currentUser.mpName)}&month=${encodeURIComponent(month)}`);
+            updateProgress(70);
             const clients = await response.json();
+            updateProgress(80);
             
             let html = '';
+            const totalClients = clients.length;
             clients.forEach((c, i) => {
                 html += `
                 <div class="card p-2 client-card">
@@ -383,16 +426,27 @@
                     
                     <div id="box${i}" class="border-top pt-2 mt-2">
                         <div class="d-flex gap-2 align-items-center">
-                            <input type="file" id="file${i}" accept="image/*" capture="camera" class="form-control form-control-sm flex-grow-1">
+                            <input type="file" id="file${i}" accept="image/*" class="form-control form-control-sm flex-grow-1">
                             <button onclick='uploadFile(${i}, ${JSON.stringify(c)})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap;">ОТПРАВИТЬ</button>
                         </div>
                     </div>
                 </div>`;
+                
+                // Обновляем прогресс при формировании каждой карточки
+                if (totalClients > 0) {
+                    const cardProgress = 80 + Math.floor((i + 1) / totalClients * 15);
+                    updateProgress(cardProgress);
+                }
             });
+            
+            updateProgress(95);
             document.getElementById('clientList').innerHTML = html || '<div class="text-center p-4">Клиенты не найдены</div>';
+            updateProgress(100);
+            
+            await new Promise(resolve => setTimeout(resolve, 200));
+            showLoader(false);
         } catch (e) {
             alert("Ошибка при получении списка клиентов");
-        } finally {
             showLoader(false);
         }
     }
@@ -461,9 +515,14 @@
         reader.readAsDataURL(fileInput.files[0]);
     }
 
-    function showLoader(show) { 
+    function showLoader(show, text = 'Загрузка данных...') { 
         const loader = document.getElementById('loader');
+        const progressText = document.getElementById('progressText');
+        const loaderText = loader.querySelector('.fw-bold');
+        
         if (show) {
+            loaderText.innerText = text;
+            updateProgress(0);
             loader.style.display = 'flex';
             loader.style.opacity = '0';
             setTimeout(() => {
@@ -475,8 +534,16 @@
             loader.style.opacity = '0';
             setTimeout(() => {
                 loader.style.display = 'none';
+                updateProgress(0);
             }, 300);
         }
+    }
+    
+    function updateProgress(percent) {
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        progressBar.style.width = percent + '%';
+        progressText.innerText = Math.round(percent) + '%';
     }
     
     function logout() { 
