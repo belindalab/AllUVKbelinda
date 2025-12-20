@@ -234,6 +234,70 @@
             .d-flex.gap-2 {
                 gap: 6px;
             }
+            .modal-dialog-custom {
+                width: 95%;
+                max-width: 95%;
+                margin: 10px;
+            }
+            .modal-title-custom {
+                font-size: 1.1rem;
+            }
+            .modal-body-custom {
+                font-size: 0.9rem;
+                padding: 15px;
+            }
+        }
+        
+        /* Модальное окно для ошибок */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease;
+        }
+        .modal-dialog-custom {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 90%;
+            width: 400px;
+            animation: scaleIn 0.3s ease-out;
+            margin: 20px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-content-custom {
+            padding: 0;
+        }
+        .modal-header-custom {
+            padding: 20px 20px 10px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .modal-title-custom {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #424B51;
+        }
+        .modal-body-custom {
+            padding: 20px;
+            color: #555;
+            font-size: 1rem;
+        }
+        .modal-footer-custom {
+            padding: 10px 20px 20px;
+            text-align: right;
+            border-top: 1px solid #e9ecef;
+        }
+        .modal-footer-custom .btn {
+            min-width: 80px;
         }
     </style>
 </head>
@@ -247,6 +311,23 @@
             <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%; background: #DF3B20; transition: width 0.3s ease; border-radius: 10px;"></div>
         </div>
         <div id="progressText" class="mt-2 fw-bold" style="color: #424B51; font-size: 0.9rem;">0%</div>
+    </div>
+</div>
+
+<!-- Модальное окно для ошибок -->
+<div id="errorModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog-custom">
+        <div class="modal-content-custom">
+            <div class="modal-header-custom">
+                <h5 class="modal-title-custom">Подтвердите действие</h5>
+            </div>
+            <div class="modal-body-custom">
+                <p id="errorMessage"></p>
+            </div>
+            <div class="modal-footer-custom">
+                <button onclick="closeErrorModal()" class="btn btn-primary btn-sm">OK</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -287,9 +368,94 @@
 
 <script>
     // === ВСТАВЬТЕ ВАШ URL ВЕБ-ПРИЛОЖЕНИЯ НИЖЕ ===
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx12Br-t3B5s_NiWqQJ-xgP3Yo7FAHZzwHc75b7UKD2RO1K9hJHsAO592FJn12ABdklIQ/exec"; 
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyxIKk6wYRu14N9EjAWtpmtwLntzOlzLoVW8mmx4KKS6zuLkK97FgB2dhcG4tVQTVZ_2Q/exec";
+    
+    /*
+    === ТРЕБОВАНИЯ К СЕРВЕРНОМУ СКРИПТУ (Google Apps Script) ===
+    
+    Скрипт должен обрабатывать следующие действия:
+    
+    1. action=login (GET)
+       Параметры: login, pass
+       Возвращает: {success: true, mpName: "Имя сотрудника"} или {success: false}
+    
+    2. action=getMonths (GET)
+       Возвращает: массив строк с месяцами, например: ["Октябрь 2025", "Ноябрь 2025"]
+    
+    3. action=getClients (GET)
+       Параметры: mpName, month
+       Возвращает: массив объектов клиентов:
+       [
+         {
+           client: "Имя клиента",
+           type: "УВК" или "Предоплата/Вложение",
+           spec: "Специальность",
+           ab: "АБ",
+           group: "Группа",      // скрыто в UI, но отправляется
+           lpu: "Учреждение",    // скрыто в UI, но отправляется
+           oblast: "Область",    // скрыто в UI, но отправляется
+           status: "Отправлено"  // из столбца S, если чек отправлен
+         },
+         ...
+       ]
+       ВАЖНО: Если status = "Отправлено", то показывается статус "ЧЕК ОТПРАВЛЕН"
+    
+    4. action=upload (POST)
+       Тело запроса (JSON):
+       {
+         action: "upload",
+         fileData: "data:image/jpeg;base64,...", // base64 строка изображения
+         clientData: {
+           client: "Имя клиента",
+           type: "УВК",
+           spec: "Специальность",
+           ab: "АБ",
+           group: "Группа",
+           lpu: "Учреждение",
+           oblast: "Область",
+           mpName: "Имя сотрудника"
+         }
+       }
+       Возвращает: {success: true} или {success: false, error: "Текст ошибки"}
+    
+    ВАЖНО: Все данные клиента (group, lpu, oblast) должны отправляться на сервер,
+    даже если они скрыты в интерфейсе!
+    */ 
 
     let currentUser = JSON.parse(localStorage.getItem('mp_user'));
+
+    // Функция для генерации уникального ключа клиента
+    function getClientKey(mpName, month, client) {
+        return `check_${mpName}_${month}_${client}`.replace(/\s+/g, '_');
+    }
+
+    // Функция для сохранения информации об отправленном чеке
+    function saveSentCheck(mpName, month, client) {
+        const key = getClientKey(mpName, month, client);
+        const sentChecks = JSON.parse(localStorage.getItem('sent_checks') || '{}');
+        if (!sentChecks[key]) {
+            sentChecks[key] = [];
+        }
+        sentChecks[key].push({
+            timestamp: new Date().toISOString(),
+            count: sentChecks[key].length + 1
+        });
+        localStorage.setItem('sent_checks', JSON.stringify(sentChecks));
+    }
+
+    // Функция для проверки, были ли отправлены чеки для клиента
+    function hasSentChecks(mpName, month, client) {
+        const key = getClientKey(mpName, month, client);
+        const sentChecks = JSON.parse(localStorage.getItem('sent_checks') || '{}');
+        return sentChecks[key] && sentChecks[key].length > 0;
+    }
+
+    // Функция для получения количества отправленных чеков
+    function getSentChecksCount(mpName, month, client) {
+        const key = getClientKey(mpName, month, client);
+        const sentChecks = JSON.parse(localStorage.getItem('sent_checks') || '{}');
+        return sentChecks[key] ? sentChecks[key].length : 0;
+    }
 
     // Если пользователь уже входил, показываем главный блок
     if (currentUser) {
@@ -302,7 +468,10 @@
         const login = document.getElementById('login').value.trim();
         const pass = document.getElementById('pass').value.trim();
         
-        if (!login || !pass) return alert("Заполните все поля");
+        if (!login || !pass) {
+            showErrorModal("Заполните все поля");
+            return;
+        }
         
         showLoader(true, 'Авторизация...');
         updateProgress(20);
@@ -325,11 +494,11 @@
                 loadMonths();
             } else {
                 showLoader(false);
-                alert("Ошибка: Неверный логин или пароль");
+                showErrorModal("Ошибка: Неверный логин или пароль");
             }
         } catch (e) {
             showLoader(false);
-            alert("Ошибка связи с сервером. Проверьте интернет.");
+            showErrorModal("Ошибка связи с сервером. Проверьте подключение к интернету и попробуйте снова.");
         }
     }
 
@@ -406,12 +575,68 @@
             
             const response = await fetch(`${WEB_APP_URL}?action=getClients&mpName=${encodeURIComponent(currentUser.mpName)}&month=${encodeURIComponent(month)}`);
             updateProgress(70);
-            const clients = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            let data = await response.json();
+            console.log("Ответ сервера getClients:", data); // Для отладки
+            // Логируем первый клиент для проверки структуры данных
+            if (Array.isArray(data) && data.length > 0) {
+                console.log("Структура данных первого клиента:", data[0]);
+                console.log("Все ключи первого клиента:", Object.keys(data[0]));
+            }
             updateProgress(80);
             
+            // Проверяем, если сервер вернул объект с ошибкой
+            if (data && typeof data === 'object' && !Array.isArray(data)) {
+                if (data.success === false || data.error) {
+                    throw new Error(data.error || "Ошибка на сервере");
+                }
+                // Если это объект с массивом клиентов
+                if (data.clients && Array.isArray(data.clients)) {
+                    data = data.clients;
+                }
+            }
+            
+            // Проверяем, что получили массив клиентов
+            if (!Array.isArray(data)) {
+                console.error("Ожидался массив клиентов, получено:", data);
+                throw new Error("Сервер вернул неверный формат данных. Ожидается массив клиентов.");
+            }
+            
+            const clients = data;
             let html = '';
             const totalClients = clients.length;
+            
+            // Сохраняем данные клиентов в глобальную переменную для доступа из функций
+            window.clientsData = clients;
+            
             clients.forEach((c, i) => {
+                // Проверяем статус из данных сервера (столбец S)
+                // Проверяем все возможные варианты названия поля
+                const status = c.status || c.Status || c.STATUS || c.s || c.S || c['Статус'] || c['статус'] || '';
+                
+                // Логируем для отладки (можно убрать после проверки)
+                if (i === 0) {
+                    console.log("Пример данных клиента:", c);
+                    console.log("Статус клиента:", status);
+                }
+                
+                // Проверяем, содержит ли статус "отправлено" (без учета регистра и пробелов)
+                const statusStr = status ? status.toString().trim().toLowerCase() : '';
+                const isSentFromServer = statusStr === 'отправлено' || statusStr.includes('отправлено');
+                
+                // Также проверяем localStorage для дополнительных отправленных чеков
+                const hasLocalChecks = hasSentChecks(currentUser.mpName, month, c.client);
+                const localChecksCount = getSentChecksCount(currentUser.mpName, month, c.client);
+                
+                // Если статус "Отправлено" из сервера - показываем только статус без кнопки
+                // Если статус пустой, но есть локальные отправленные чеки - показываем статус + кнопку "ОТПРАВИТЬ ЕЩЕ"
+                const showSentStatus = isSentFromServer || hasLocalChecks;
+                const showSendMoreButton = !isSentFromServer && hasLocalChecks; // Кнопка только если НЕ отправлено с сервера, но есть локальные чеки
+                
                 html += `
                 <div class="card p-2 client-card">
                     <div class="d-flex justify-content-between align-items-start mb-2">
@@ -425,10 +650,21 @@
                     <div class="info-row hidden-field mb-2"><b>Область:</b> ${c.oblast}</div>
                     
                     <div id="box${i}" class="border-top pt-2 mt-2">
-                        <div class="d-flex gap-2 align-items-center">
-                            <input type="file" id="file${i}" accept="image/*" class="form-control form-control-sm flex-grow-1">
-                            <button onclick='uploadFile(${i}, ${JSON.stringify(c)})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap;">ОТПРАВИТЬ</button>
-                        </div>
+                        ${showSentStatus ? 
+                            `<div class="alert alert-success py-2 px-2 mb-0 text-center fw-bold small">
+                                ✓ ЧЕК ОТПРАВЛЕН
+                            </div>
+                            ${showSendMoreButton ? 
+                                `<div class="d-flex gap-2 align-items-center mt-2">
+                                    <input type="file" id="file${i}" accept="image/*" class="form-control form-control-sm flex-grow-1">
+                                    <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap;">ОТПРАВИТЬ ЕЩЕ</button>
+                                </div>` : ''
+                            }` :
+                            `<div class="d-flex gap-2 align-items-center">
+                                <input type="file" id="file${i}" accept="image/*" class="form-control form-control-sm flex-grow-1">
+                                <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap;">ОТПРАВИТЬ</button>
+                            </div>`
+                        }
                     </div>
                 </div>`;
                 
@@ -446,20 +682,36 @@
             await new Promise(resolve => setTimeout(resolve, 200));
             showLoader(false);
         } catch (e) {
-            alert("Ошибка при получении списка клиентов");
+            console.error("Ошибка при загрузке клиентов:", e);
             showLoader(false);
+            
+            let errorMessage = "Ошибка при получении списка клиентов. ";
+            if (e.message) {
+                errorMessage += e.message;
+            } else {
+                errorMessage += "Проверьте подключение к интернету и попробуйте снова.";
+            }
+            
+            showErrorModal(errorMessage);
         }
     }
 
     // Функция отправки файла (POST)
-    function uploadFile(index, clientData) {
+    function uploadFile(index, clientIndex) {
         const fileInput = document.getElementById('file' + index);
         if (!fileInput.files[0]) {
             fileInput.style.animation = 'shake 0.5s ease';
             setTimeout(() => {
                 fileInput.style.animation = '';
             }, 500);
-            return alert("Сначала сделайте фото чека!");
+            showErrorModal("Сначала выберите фото чека!");
+            return;
+        }
+
+        const clientData = window.clientsData[clientIndex];
+        if (!clientData) {
+            showErrorModal("Ошибка: данные клиента не найдены");
+            return;
         }
 
         const btn = document.querySelector(`#box${index} button`);
@@ -487,16 +739,24 @@
             .then(res => {
                 showLoader(false);
                 if (res.success) {
+                    // Сохраняем информацию об отправленном чеке
+                    const month = document.getElementById('monthSelect').value;
+                    saveSentCheck(currentUser.mpName, month, clientData.client);
+                    
                     const box = document.getElementById('box' + index);
                     box.style.animation = 'scaleIn 0.4s ease-out';
+                    const checksCount = getSentChecksCount(currentUser.mpName, month, clientData.client);
+                    
                     box.innerHTML = 
-                        '<div class="alert alert-success py-2 px-2 mb-0 text-center fw-bold small" style="animation: scaleIn 0.5s ease-out;">✓ ЧЕК ОТПРАВЛЕН</div>';
+                        `<div class="alert alert-success py-2 px-2 mb-0 text-center fw-bold small" style="animation: scaleIn 0.5s ease-out;">
+                            ✓ ЧЕК ОТПРАВЛЕН
+                        </div>`;
                 } else {
                     btn.style.animation = 'shake 0.5s ease';
                     setTimeout(() => {
                         btn.style.animation = '';
                     }, 500);
-                    alert("Ошибка: " + res.error);
+                    showErrorModal("Ошибка: " + (res.error || "Не удалось отправить чек"));
                     btn.disabled = false;
                     btn.innerText = "ОТПРАВИТЬ ЧЕК";
                 }
@@ -507,7 +767,7 @@
                 setTimeout(() => {
                     btn.style.animation = '';
                 }, 500);
-                alert("Ошибка сети");
+                showErrorModal("Ошибка сети. Проверьте подключение к интернету и попробуйте снова.");
                 btn.disabled = false;
                 btn.innerText = "ОТПРАВИТЬ ЧЕК";
             });
@@ -554,6 +814,49 @@
             location.reload();
         }, 300);
     }
+    
+    // Функции для работы с модальным окном ошибок
+    function showErrorModal(message) {
+        const modal = document.getElementById('errorModal');
+        const errorMessage = document.getElementById('errorMessage');
+        if (!modal || !errorMessage) return;
+        
+        errorMessage.innerText = message;
+        modal.style.opacity = '1';
+        modal.style.display = 'flex';
+    }
+    
+    function closeErrorModal() {
+        const modal = document.getElementById('errorModal');
+        if (!modal) return;
+        
+        modal.style.transition = 'opacity 0.3s ease';
+        modal.style.opacity = '0';
+        setTimeout(() => {
+            modal.style.display = 'none';
+            modal.style.opacity = '1';
+        }, 300);
+    }
+    
+    // Инициализация модального окна при загрузке страницы
+    (function initErrorModal() {
+        const modal = document.getElementById('errorModal');
+        if (modal) {
+            // Закрытие при клике на overlay
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeErrorModal();
+                }
+            });
+            
+            // Закрытие при нажатии Escape
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && modal.style.display === 'flex') {
+                    closeErrorModal();
+                }
+            });
+        }
+    })();
 </script>
 </body>
 </html>
