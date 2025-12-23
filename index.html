@@ -165,6 +165,18 @@
             animation: slideIn 0.5s ease-out;
         }
         
+        #statsCounter {
+            background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+            border-left: 4px solid #DF3B20;
+            animation: slideIn 0.5s ease-out 0.2s both;
+        }
+        #statsCounter .col-4 {
+            padding: 8px;
+        }
+        #statsCounter .fw-bold {
+            line-height: 1.2;
+        }
+        
         #loginBlock {
             animation: fadeIn 0.6s ease-out;
         }
@@ -364,10 +376,28 @@
             <button onclick="logout()" class="btn btn-outline-danger btn-sm">Выйти</button>
         </div>
         
+        <!-- Счетчик клиентов и чеков -->
+        <div id="statsCounter" class="card p-3 mb-3 shadow-sm" style="display: none;">
+            <div class="row text-center">
+                <div class="col-4">
+                    <div class="fw-bold" style="color: #424B51; font-size: 1.1rem;" id="totalClients">0</div>
+                    <div class="small text-muted">Всего клиентов</div>
+                </div>
+                <div class="col-4">
+                    <div class="fw-bold" style="color: #28a745; font-size: 1.1rem;" id="sentChecks">0</div>
+                    <div class="small text-muted">Отправлено чеков</div>
+                </div>
+                <div class="col-4">
+                    <div class="fw-bold" style="color: #DF3B20; font-size: 1.1rem;" id="remainingClients">0</div>
+                    <div class="small text-muted">Осталось</div>
+                </div>
+            </div>
+        </div>
+        
         <div class="card p-3 mb-4 shadow-sm">
             <label class="form-label fw-bold small" style="color: #424B51;">Выберите период отчета:</label>
             <select id="monthSelect" class="form-select" onchange="fetchClients()">
-                <option value="">-- Нажмите для выбора месяца --</option>
+                <option value="">-- Выберите месяц --</option>
                 </select>
         </div>
 
@@ -565,48 +595,85 @@
         }, 300);
         
         document.getElementById('mpDisplay').innerText = currentUser.mpName;
+        
+        // Скрываем счетчик и очищаем список клиентов при входе
+        document.getElementById('statsCounter').style.display = 'none';
+        document.getElementById('clientList').innerHTML = '';
+        document.getElementById('monthSelect').value = '';
     }
 
-    // Загрузка списка месяцев из таблицы
-    async function loadMonths() {
-        showLoader(true, 'Загрузка списка месяцев...');
-        updateProgress(10);
+    // Генерация списка месяцев (октябрь 2025 - декабрь 2026)
+    function loadMonths() {
+        const monthNames = [
+            'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+            'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+        ];
         
-        try {
-            // Симуляция прогресса загрузки
-            const progressSteps = [20, 40, 60, 80];
-            for (let i = 0; i < progressSteps.length; i++) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                updateProgress(progressSteps[i]);
+        const months = [];
+        // Октябрь 2025 - Декабрь 2026
+        for (let year = 2025; year <= 2026; year++) {
+            const startMonth = year === 2025 ? 9 : 0; // Октябрь = индекс 9
+            const endMonth = year === 2026 ? 11 : 11; // Декабрь = индекс 11
+            
+            for (let month = startMonth; month <= endMonth; month++) {
+                months.push(`${monthNames[month]} ${year}`);
             }
-            
-            const response = await fetch(`${WEB_APP_URL}?action=getMonths`);
-            updateProgress(90);
-            const months = await response.json();
-            const select = document.getElementById('monthSelect');
-            
-            // Очищаем и заполняем
-            select.innerHTML = '<option value="">-- Выберите месяц --</option>';
-            months.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m;
-                opt.innerText = m;
-                select.appendChild(opt);
-            });
-            
-            updateProgress(100);
-            await new Promise(resolve => setTimeout(resolve, 200));
-            showLoader(false);
-        } catch (e) { 
-            console.error("Ошибка загрузки месяцев", e);
-            showLoader(false);
         }
+        
+        const select = document.getElementById('monthSelect');
+        select.innerHTML = '<option value="">-- Выберите месяц --</option>';
+        months.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.innerText = m;
+            select.appendChild(opt);
+        });
+    }
+    
+    // Функция обновления счетчика
+    function updateStatsCounter(clients) {
+        const statsCounter = document.getElementById('statsCounter');
+        if (!clients || clients.length === 0) {
+            statsCounter.style.display = 'none';
+            return;
+        }
+        
+        const month = document.getElementById('monthSelect').value;
+        let totalClients = clients.length;
+        let sentChecks = 0;
+        
+        clients.forEach(c => {
+            const status = c.status || c.Status || c.STATUS || c.s || c.S || c['Статус'] || c['статус'] || '';
+            const statusStr = status ? status.toString().trim().toLowerCase() : '';
+            const isSent = statusStr === 'отправлено' || statusStr.includes('отправлено');
+            
+            if (isSent) {
+                sentChecks++;
+            }
+        });
+        
+        const remaining = totalClients - sentChecks;
+        
+        document.getElementById('totalClients').innerText = totalClients;
+        document.getElementById('sentChecks').innerText = sentChecks;
+        document.getElementById('remainingClients').innerText = remaining;
+        
+        statsCounter.style.display = 'block';
     }
 
     // Загрузка клиентов по выбранному месяцу
     async function fetchClients() {
         const month = document.getElementById('monthSelect').value;
-        if (!month) return;
+        if (!month) {
+            // Если месяц не выбран, скрываем счетчик и очищаем список
+            document.getElementById('statsCounter').style.display = 'none';
+            document.getElementById('clientList').innerHTML = '';
+            return;
+        }
+        
+        // Скрываем счетчик до загрузки данных
+        document.getElementById('statsCounter').style.display = 'none';
+        document.getElementById('clientList').innerHTML = '';
         
         showLoader(true, 'Загрузка списка клиентов...');
         updateProgress(10);
@@ -723,6 +790,10 @@
             
             updateProgress(95);
             document.getElementById('clientList').innerHTML = html || '<div class="text-center p-4">Клиенты не найдены</div>';
+            
+            // Обновляем счетчик статистики
+            updateStatsCounter(clients);
+            
             updateProgress(100);
             
             await new Promise(resolve => setTimeout(resolve, 200));
@@ -789,14 +860,23 @@
                     const month = document.getElementById('monthSelect').value;
                     saveSentCheck(currentUser.mpName, month, clientData.client);
                     
+                    // Обновляем статус в данных клиента
+                    if (window.clientsData && window.clientsData[clientIndex]) {
+                        window.clientsData[clientIndex].status = 'Отправлено';
+                    }
+                    
                     const box = document.getElementById('box' + index);
                     box.style.animation = 'scaleIn 0.4s ease-out';
-                    const checksCount = getSentChecksCount(currentUser.mpName, month, clientData.client);
                     
                     box.innerHTML = 
                         `<div class="alert alert-success py-2 px-2 mb-0 text-center fw-bold small" style="animation: scaleIn 0.5s ease-out;">
                             ✓ ЧЕК ОТПРАВЛЕН
                         </div>`;
+                    
+                    // Обновляем счетчик статистики
+                    if (window.clientsData) {
+                        updateStatsCounter(window.clientsData);
+                    }
                 } else {
                     btn.style.animation = 'shake 0.5s ease';
                     setTimeout(() => {
