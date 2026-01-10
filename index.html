@@ -566,6 +566,7 @@
                 localStorage.setItem('mp_user', JSON.stringify(res));
                 updateProgress(100);
                 await new Promise(resolve => setTimeout(resolve, 200));
+                showLoader(false);
                 showMain();
                 loadMonths();
             } else {
