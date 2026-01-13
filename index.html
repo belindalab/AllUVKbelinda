@@ -155,6 +155,26 @@
             color: #fff;
         }
         
+        .btn-outline-primary {
+            border-color: #0d6efd;
+            color: #0d6efd;
+        }
+        .btn-outline-primary:hover {
+            background: #0d6efd;
+            border-color: #0d6efd;
+            color: #fff;
+        }
+        
+        .btn-outline-secondary {
+            border-color: #6c757d;
+            color: #6c757d;
+        }
+        .btn-outline-secondary:hover {
+            background: #6c757d;
+            border-color: #6c757d;
+            color: #fff;
+        }
+        
         .welcome-box { 
             background: #fff; 
             padding: 18px; 
@@ -240,6 +260,14 @@
             font-size: 0.875rem;
         }
         
+        /* Стили для отображения выбранного файла */
+        #fileInfo {
+            animation: slideIn 0.3s ease-out;
+        }
+        .bg-light {
+            background-color: #f8f9fa !important;
+        }
+        
         /* Улучшенная мобильная адаптация */
         @media (max-width: 576px) {
             .container {
@@ -266,6 +294,14 @@
             .modal-body-custom {
                 font-size: 0.9rem;
                 padding: 15px;
+            }
+            /* Адаптация превью файла на мобильных */
+            #fileInfo img {
+                width: 40px !important;
+                height: 40px !important;
+            }
+            #fileInfo .small {
+                font-size: 0.75rem !important;
             }
         }
         
@@ -769,14 +805,44 @@
                                 ✓ ЧЕК ОТПРАВЛЕН
                             </div>
                             ${showSendMoreButton ? 
-                                `<div class="d-flex gap-2 align-items-center mt-2">
-                                    <input type="file" id="file${i}" accept="image/*" class="form-control form-control-sm flex-grow-1">
-                                    <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap;">ОТПРАВИТЬ ЕЩЕ</button>
+                                `<div class="mt-2">
+                                    <div id="fileInfo${i}" class="mb-2" style="display: none;">
+                                        <div class="d-flex align-items-center gap-2 p-2 bg-light rounded" style="border: 2px solid #28a745;">
+                                            <img id="preview${i}" src="" alt="Превью" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd;">
+                                            <div class="flex-grow-1">
+                                                <div class="small fw-bold text-success">✓ Файл выбран</div>
+                                                <div id="fileName${i}" class="small text-muted" style="word-break: break-word;"></div>
+                                            </div>
+                                            <button onclick="clearFileSelection(${i})" class="btn btn-sm btn-outline-danger" style="padding: 2px 8px; font-size: 0.75rem;">✕</button>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                                        <input type="file" id="file${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i})">
+                                        <input type="file" id="camera${i}" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelect(${i}, ${i})">
+                                        <button onclick="document.getElementById('file${i}').click()" class="btn btn-outline-primary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Выбрать файл</button>
+                                        <button onclick="document.getElementById('camera${i}').click()" class="btn btn-outline-secondary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Открыть камеру</button>
+                                        <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap; flex: 1; min-width: 120px;">ОТПРАВИТЬ ЕЩЕ</button>
+                                    </div>
                                 </div>` : ''
                             }` :
-                            `<div class="d-flex gap-2 align-items-center">
-                                <input type="file" id="file${i}" accept="image/*" class="form-control form-control-sm flex-grow-1">
-                                <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap;">ОТПРАВИТЬ</button>
+                            `<div>
+                                <div id="fileInfo${i}" class="mb-2" style="display: none;">
+                                    <div class="d-flex align-items-center gap-2 p-2 bg-light rounded" style="border: 2px solid #28a745;">
+                                        <img id="preview${i}" src="" alt="Превью" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd;">
+                                        <div class="flex-grow-1">
+                                            <div class="small fw-bold text-success">✓ Файл выбран</div>
+                                            <div id="fileName${i}" class="small text-muted" style="word-break: break-word;"></div>
+                                        </div>
+                                        <button onclick="clearFileSelection(${i})" class="btn btn-sm btn-outline-danger" style="padding: 2px 8px; font-size: 0.75rem;">✕</button>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2 align-items-center flex-wrap">
+                                    <input type="file" id="file${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i})">
+                                    <input type="file" id="camera${i}" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelect(${i}, ${i})">
+                                    <button onclick="document.getElementById('file${i}').click()" class="btn btn-outline-primary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Выбрать файл</button>
+                                    <button onclick="document.getElementById('camera${i}').click()" class="btn btn-outline-secondary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Открыть камеру</button>
+                                    <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap; flex: 1; min-width: 120px;">ОТПРАВИТЬ</button>
+                                </div>
                             </div>`
                         }
                     </div>
@@ -814,10 +880,80 @@
         }
     }
 
+    // Функция обработки выбора файла
+    function handleFileSelect(index, clientIndex) {
+        // Файл уже выбран через один из input'ов, можно сразу отправлять или показать превью
+        const fileInput = document.getElementById('file' + index);
+        const cameraInput = document.getElementById('camera' + index);
+        const fileInfo = document.getElementById('fileInfo' + index);
+        const fileName = document.getElementById('fileName' + index);
+        const preview = document.getElementById('preview' + index);
+        
+        let selectedFile = null;
+        
+        // Синхронизируем файл между обоими input'ами для удобства
+        if (fileInput.files[0]) {
+            // Файл выбран из галереи
+            selectedFile = fileInput.files[0];
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(fileInput.files[0]);
+            cameraInput.files = dataTransfer.files;
+        } else if (cameraInput.files[0]) {
+            // Файл выбран из камеры
+            selectedFile = cameraInput.files[0];
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(cameraInput.files[0]);
+            fileInput.files = dataTransfer.files;
+        }
+        
+        // Показываем информацию о выбранном файле
+        if (selectedFile) {
+            fileName.textContent = selectedFile.name || 'Фото с камеры';
+            fileInfo.style.display = 'block';
+            
+            // Показываем превью изображения
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+            };
+            reader.readAsDataURL(selectedFile);
+        }
+    }
+    
+    // Функция очистки выбранного файла
+    function clearFileSelection(index) {
+        const fileInput = document.getElementById('file' + index);
+        const cameraInput = document.getElementById('camera' + index);
+        const fileInfo = document.getElementById('fileInfo' + index);
+        const preview = document.getElementById('preview' + index);
+        
+        // Очищаем input'ы
+        fileInput.value = '';
+        cameraInput.value = '';
+        
+        // Скрываем информацию о файле
+        fileInfo.style.display = 'none';
+        preview.src = '';
+    }
+    
+    // Функция получения выбранного файла
+    function getSelectedFile(index) {
+        const fileInput = document.getElementById('file' + index);
+        const cameraInput = document.getElementById('camera' + index);
+        
+        if (fileInput.files[0]) {
+            return fileInput.files[0];
+        } else if (cameraInput.files[0]) {
+            return cameraInput.files[0];
+        }
+        return null;
+    }
+
     // Функция отправки файла (POST)
     function uploadFile(index, clientIndex) {
-        const fileInput = document.getElementById('file' + index);
-        if (!fileInput.files[0]) {
+        const file = getSelectedFile(index);
+        if (!file) {
+            const fileInput = document.getElementById('file' + index);
             fileInput.style.animation = 'shake 0.5s ease';
             setTimeout(() => {
                 fileInput.style.animation = '';
@@ -866,6 +1002,9 @@
                         window.clientsData[clientIndex].status = 'Отправлено';
                     }
                     
+                    // Очищаем выбранный файл
+                    clearFileSelection(index);
+                    
                     const box = document.getElementById('box' + index);
                     box.style.animation = 'scaleIn 0.4s ease-out';
                     
@@ -899,7 +1038,7 @@
                 btn.innerText = "ОТПРАВИТЬ ЧЕК";
             });
         };
-        reader.readAsDataURL(fileInput.files[0]);
+        reader.readAsDataURL(file);
     }
 
     function showLoader(show, text = 'Загрузка данных...') { 
