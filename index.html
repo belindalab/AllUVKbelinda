@@ -818,7 +818,7 @@
                                     </div>
                                     <div class="d-flex gap-2 align-items-center flex-wrap">
                                         <input type="file" id="file${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'gallery')">
-                                        <input type="file" id="camera${i}" accept="image/*" capture style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'camera')">
+                                        <input type="file" id="camera${i}" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'camera')">
                                         <button onclick="document.getElementById('file${i}').click()" class="btn btn-outline-primary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Выбрать файл</button>
                                         <button onclick="openCamera(${i})" class="btn btn-outline-secondary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Открыть камеру</button>
                                         <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap; flex: 1; min-width: 120px;">ОТПРАВИТЬ ЕЩЕ</button>
@@ -838,7 +838,7 @@
                                 </div>
                                 <div class="d-flex gap-2 align-items-center flex-wrap">
                                     <input type="file" id="file${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'gallery')">
-                                    <input type="file" id="camera${i}" accept="image/*" capture style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'camera')">
+                                    <input type="file" id="camera${i}" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'camera')">
                                     <button onclick="document.getElementById('file${i}').click()" class="btn btn-outline-primary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Выбрать файл</button>
                                     <button onclick="openCamera(${i})" class="btn btn-outline-secondary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Открыть камеру</button>
                                     <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap; flex: 1; min-width: 120px;">ОТПРАВИТЬ</button>
@@ -885,25 +885,36 @@
         const cameraInput = document.getElementById('camera' + index);
         if (!cameraInput) return;
         
-        // Проверяем разрешения через Permissions API (если доступен)
-        // Это помогает браузеру запомнить разрешение
-        if (navigator.permissions && navigator.permissions.query) {
+        // Пробуем использовать MediaDevices API для прямого доступа к камере
+        // Это более надежный способ открыть именно камеру, а не галерею
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             try {
-                const permissionStatus = await navigator.permissions.query({ name: 'camera' });
-                // Если разрешение уже дано, браузер должен запомнить его
-                if (permissionStatus.state === 'granted') {
-                    console.log('Разрешение на камеру уже дано');
-                }
-            } catch (e) {
-                // Permissions API может не поддерживаться, это нормально
-                console.log('Permissions API не поддерживается');
+                // Запрашиваем доступ к задней камере
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment' // Задняя камера
+                    }, 
+                    audio: false 
+                });
+                
+                // Сразу останавливаем поток, так как нам нужно использовать input для выбора
+                stream.getTracks().forEach(track => track.stop());
+                
+                // После получения разрешения, используем input
+                // Теперь браузер должен запомнить разрешение
+                setTimeout(() => {
+                    cameraInput.click();
+                }, 100);
+                
+            } catch (error) {
+                console.error('Ошибка доступа к камере:', error);
+                // Если не удалось получить доступ, просто используем input
+                cameraInput.click();
             }
+        } else {
+            // Если MediaDevices не поддерживается, используем input с capture
+            cameraInput.click();
         }
-        
-        // Используем простой подход с input capture
-        // Браузер лучше запоминает разрешения для input с capture, чем для getUserMedia
-        // После первого разрешения браузер должен запомнить его автоматически
-        cameraInput.click();
     }
     
     // Функция обработки выбора файла
