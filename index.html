@@ -817,8 +817,8 @@
                                         </div>
                                     </div>
                                     <div class="d-flex gap-2 align-items-center flex-wrap">
-                                        <input type="file" id="file${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i})">
-                                        <input type="file" id="camera${i}" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelect(${i}, ${i})">
+                                        <input type="file" id="file${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'gallery')">
+                                        <input type="file" id="camera${i}" accept="image/*" capture="camera" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'camera')">
                                         <button onclick="document.getElementById('file${i}').click()" class="btn btn-outline-primary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Выбрать файл</button>
                                         <button onclick="document.getElementById('camera${i}').click()" class="btn btn-outline-secondary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Открыть камеру</button>
                                         <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap; flex: 1; min-width: 120px;">ОТПРАВИТЬ ЕЩЕ</button>
@@ -837,8 +837,8 @@
                                     </div>
                                 </div>
                                 <div class="d-flex gap-2 align-items-center flex-wrap">
-                                    <input type="file" id="file${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i})">
-                                    <input type="file" id="camera${i}" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelect(${i}, ${i})">
+                                    <input type="file" id="file${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'gallery')">
+                                    <input type="file" id="camera${i}" accept="image/*" capture="camera" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'camera')">
                                     <button onclick="document.getElementById('file${i}').click()" class="btn btn-outline-primary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Выбрать файл</button>
                                     <button onclick="document.getElementById('camera${i}').click()" class="btn btn-outline-secondary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Открыть камеру</button>
                                     <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap; flex: 1; min-width: 120px;">ОТПРАВИТЬ</button>
@@ -881,7 +881,7 @@
     }
 
     // Функция обработки выбора файла
-    function handleFileSelect(index, clientIndex) {
+    function handleFileSelect(index, clientIndex, source) {
         // Файл уже выбран через один из input'ов, можно сразу отправлять или показать превью
         const fileInput = document.getElementById('file' + index);
         const cameraInput = document.getElementById('camera' + index);
@@ -891,24 +891,22 @@
         
         let selectedFile = null;
         
-        // Синхронизируем файл между обоими input'ами для удобства
-        if (fileInput.files[0]) {
+        // Обрабатываем выбор файла в зависимости от источника
+        if (source === 'gallery' && fileInput.files[0]) {
             // Файл выбран из галереи
             selectedFile = fileInput.files[0];
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(fileInput.files[0]);
-            cameraInput.files = dataTransfer.files;
-        } else if (cameraInput.files[0]) {
+            // Очищаем камеру, чтобы избежать конфликтов
+            cameraInput.value = '';
+        } else if (source === 'camera' && cameraInput.files[0]) {
             // Файл выбран из камеры
             selectedFile = cameraInput.files[0];
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(cameraInput.files[0]);
-            fileInput.files = dataTransfer.files;
+            // Очищаем галерею, чтобы избежать конфликтов
+            fileInput.value = '';
         }
         
         // Показываем информацию о выбранном файле
         if (selectedFile) {
-            fileName.textContent = selectedFile.name || 'Фото с камеры';
+            fileName.textContent = source === 'camera' ? 'Фото с камеры' : (selectedFile.name || 'Выбранный файл');
             fileInfo.style.display = 'block';
             
             // Показываем превью изображения
@@ -928,12 +926,12 @@
         const preview = document.getElementById('preview' + index);
         
         // Очищаем input'ы
-        fileInput.value = '';
-        cameraInput.value = '';
+        if (fileInput) fileInput.value = '';
+        if (cameraInput) cameraInput.value = '';
         
         // Скрываем информацию о файле
-        fileInfo.style.display = 'none';
-        preview.src = '';
+        if (fileInfo) fileInfo.style.display = 'none';
+        if (preview) preview.src = '';
     }
     
     // Функция получения выбранного файла
