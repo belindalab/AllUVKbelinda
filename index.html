@@ -818,7 +818,7 @@
                                     </div>
                                     <div class="d-flex gap-2 align-items-center flex-wrap">
                                         <input type="file" id="file${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'gallery')">
-                                        <input type="file" id="camera${i}" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'camera')">
+                                        <input type="file" id="camera${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'camera')">
                                         <button onclick="document.getElementById('file${i}').click()" class="btn btn-outline-primary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Выбрать файл</button>
                                         <button onclick="openCamera(${i})" class="btn btn-outline-secondary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Открыть камеру</button>
                                         <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap; flex: 1; min-width: 120px;">ОТПРАВИТЬ ЕЩЕ</button>
@@ -838,7 +838,7 @@
                                 </div>
                                 <div class="d-flex gap-2 align-items-center flex-wrap">
                                     <input type="file" id="file${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'gallery')">
-                                    <input type="file" id="camera${i}" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'camera')">
+                                    <input type="file" id="camera${i}" accept="image/*" style="display: none;" onchange="handleFileSelect(${i}, ${i}, 'camera')">
                                     <button onclick="document.getElementById('file${i}').click()" class="btn btn-outline-primary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Выбрать файл</button>
                                     <button onclick="openCamera(${i})" class="btn btn-outline-secondary btn-sm" style="white-space: nowrap; flex: 1; min-width: 120px;">Открыть камеру</button>
                                     <button onclick='uploadFile(${i}, ${i})' class="btn btn-success btn-sm btn-send" style="white-space: nowrap; flex: 1; min-width: 120px;">ОТПРАВИТЬ</button>
@@ -885,30 +885,111 @@
         const cameraInput = document.getElementById('camera' + index);
         if (!cameraInput) return;
         
-        // Пробуем использовать MediaDevices API для прямого доступа к камере
-        // Это более надежный способ открыть именно камеру, а не галерею
+        // Проверяем поддержку MediaDevices API (для прямого доступа к камере)
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             try {
-                // Запрашиваем доступ к задней камере
+                // Пытаемся открыть камеру напрямую
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        facingMode: 'environment' // Задняя камера
-                    }, 
+                    video: { facingMode: 'environment' }, // Задняя камера
                     audio: false 
                 });
                 
-                // Сразу останавливаем поток, так как нам нужно использовать input для выбора
-                stream.getTracks().forEach(track => track.stop());
+                // Создаем временный video элемент для предпросмотра
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.autoplay = true;
+                video.playsInline = true;
+                video.style.position = 'fixed';
+                video.style.top = '0';
+                video.style.left = '0';
+                video.style.width = '100%';
+                video.style.height = '100%';
+                video.style.zIndex = '10000';
+                video.style.objectFit = 'cover';
+                video.style.background = '#000';
                 
-                // После получения разрешения, используем input
-                // Теперь браузер должен запомнить разрешение
-                setTimeout(() => {
-                    cameraInput.click();
-                }, 100);
+                // Создаем кнопки управления
+                const controls = document.createElement('div');
+                controls.style.position = 'fixed';
+                controls.style.bottom = '20px';
+                controls.style.left = '50%';
+                controls.style.transform = 'translateX(-50%)';
+                controls.style.zIndex = '10001';
+                controls.style.display = 'flex';
+                controls.style.gap = '10px';
+                
+                const captureBtn = document.createElement('button');
+                captureBtn.textContent = 'Сделать фото';
+                captureBtn.className = 'btn btn-success btn-lg';
+                captureBtn.style.padding = '15px 30px';
+                captureBtn.style.borderRadius = '50px';
+                captureBtn.style.fontSize = '1.1rem';
+                captureBtn.style.fontWeight = 'bold';
+                
+                const cancelBtn = document.createElement('button');
+                cancelBtn.textContent = 'Отмена';
+                cancelBtn.className = 'btn btn-danger btn-lg';
+                cancelBtn.style.padding = '15px 30px';
+                cancelBtn.style.borderRadius = '50px';
+                cancelBtn.style.fontSize = '1.1rem';
+                
+                // Canvas для захвата кадра
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                captureBtn.onclick = function() {
+                    // Ограничиваем размер изображения для сжатия
+                    const maxWidth = 1920;
+                    let width = video.videoWidth;
+                    let height = video.videoHeight;
+                    
+                    // Вычисляем новые размеры, сохраняя пропорции
+                    if (width > maxWidth) {
+                        height = (height * maxWidth) / width;
+                        width = maxWidth;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(video, 0, 0, width, height);
+                    
+                    // Останавливаем поток
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    // Удаляем элементы
+                    document.body.removeChild(video);
+                    document.body.removeChild(controls);
+                    
+                    // Конвертируем canvas в blob и создаем File с начальным сжатием
+                    // Дополнительное сжатие будет применено при отправке
+                    canvas.toBlob(function(blob) {
+                        const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
+                        
+                        // Создаем DataTransfer для установки файла в input
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        cameraInput.files = dataTransfer.files;
+                        
+                        // Вызываем обработчик выбора файла
+                        handleFileSelect(index, index, 'camera');
+                    }, 'image/jpeg', 0.85);
+                };
+                
+                cancelBtn.onclick = function() {
+                    stream.getTracks().forEach(track => track.stop());
+                    document.body.removeChild(video);
+                    document.body.removeChild(controls);
+                };
+                
+                controls.appendChild(captureBtn);
+                controls.appendChild(cancelBtn);
+                
+                document.body.appendChild(video);
+                document.body.appendChild(controls);
                 
             } catch (error) {
                 console.error('Ошибка доступа к камере:', error);
-                // Если не удалось получить доступ, просто используем input
+                // Если не удалось открыть камеру напрямую, используем input
                 cameraInput.click();
             }
         } else {
