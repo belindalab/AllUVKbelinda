@@ -885,105 +885,25 @@
         const cameraInput = document.getElementById('camera' + index);
         if (!cameraInput) return;
         
-        // Проверяем поддержку MediaDevices API (для прямого доступа к камере)
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        // Проверяем разрешения через Permissions API (если доступен)
+        // Это помогает браузеру запомнить разрешение
+        if (navigator.permissions && navigator.permissions.query) {
             try {
-                // Пытаемся открыть камеру напрямую
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' }, // Задняя камера
-                    audio: false 
-                });
-                
-                // Создаем временный video элемент для предпросмотра
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.autoplay = true;
-                video.playsInline = true;
-                video.style.position = 'fixed';
-                video.style.top = '0';
-                video.style.left = '0';
-                video.style.width = '100%';
-                video.style.height = '100%';
-                video.style.zIndex = '10000';
-                video.style.objectFit = 'cover';
-                video.style.background = '#000';
-                
-                // Создаем кнопки управления
-                const controls = document.createElement('div');
-                controls.style.position = 'fixed';
-                controls.style.bottom = '20px';
-                controls.style.left = '50%';
-                controls.style.transform = 'translateX(-50%)';
-                controls.style.zIndex = '10001';
-                controls.style.display = 'flex';
-                controls.style.gap = '10px';
-                
-                const captureBtn = document.createElement('button');
-                captureBtn.textContent = 'Сделать фото';
-                captureBtn.className = 'btn btn-success btn-lg';
-                captureBtn.style.padding = '15px 30px';
-                captureBtn.style.borderRadius = '50px';
-                captureBtn.style.fontSize = '1.1rem';
-                captureBtn.style.fontWeight = 'bold';
-                
-                const cancelBtn = document.createElement('button');
-                cancelBtn.textContent = 'Отмена';
-                cancelBtn.className = 'btn btn-danger btn-lg';
-                cancelBtn.style.padding = '15px 30px';
-                cancelBtn.style.borderRadius = '50px';
-                cancelBtn.style.fontSize = '1.1rem';
-                
-                // Canvas для захвата кадра
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                
-                captureBtn.onclick = function() {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    ctx.drawImage(video, 0, 0);
-                    
-                    // Останавливаем поток
-                    stream.getTracks().forEach(track => track.stop());
-                    
-                    // Удаляем элементы
-                    document.body.removeChild(video);
-                    document.body.removeChild(controls);
-                    
-                    // Конвертируем canvas в blob и создаем File
-                    canvas.toBlob(function(blob) {
-                        const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
-                        
-                        // Создаем DataTransfer для установки файла в input
-                        const dataTransfer = new DataTransfer();
-                        dataTransfer.items.add(file);
-                        cameraInput.files = dataTransfer.files;
-                        
-                        // Вызываем обработчик выбора файла
-                        handleFileSelect(index, index, 'camera');
-                    }, 'image/jpeg', 0.9);
-                };
-                
-                cancelBtn.onclick = function() {
-                    stream.getTracks().forEach(track => track.stop());
-                    document.body.removeChild(video);
-                    document.body.removeChild(controls);
-                };
-                
-                controls.appendChild(captureBtn);
-                controls.appendChild(cancelBtn);
-                
-                document.body.appendChild(video);
-                document.body.appendChild(controls);
-                
-            } catch (error) {
-                console.error('Ошибка доступа к камере:', error);
-                // Если не удалось открыть камеру напрямую, используем input
-                cameraInput.click();
+                const permissionStatus = await navigator.permissions.query({ name: 'camera' });
+                // Если разрешение уже дано, браузер должен запомнить его
+                if (permissionStatus.state === 'granted') {
+                    console.log('Разрешение на камеру уже дано');
+                }
+            } catch (e) {
+                // Permissions API может не поддерживаться, это нормально
+                console.log('Permissions API не поддерживается');
             }
-        } else {
-            // Если MediaDevices не поддерживается, используем input с capture
-            cameraInput.click();
         }
+        
+        // Используем простой подход с input capture
+        // Браузер лучше запоминает разрешения для input с capture, чем для getUserMedia
+        // После первого разрешения браузер должен запомнить его автоматически
+        cameraInput.click();
     }
     
     // Функция обработки выбора файла
@@ -1053,8 +973,55 @@
         return null;
     }
 
+    // Функция сжатия изображения
+    function compressImage(file, maxWidth = 1920, quality = 0.8) {
+        return new Promise((resolve, reject) => {
+            // Если файл уже маленький (меньше 500KB), пропускаем сжатие
+            if (file.size < 500 * 1024) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    resolve(e.target.result);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    // Вычисляем новые размеры, сохраняя пропорции
+                    if (width > maxWidth) {
+                        height = (height * maxWidth) / width;
+                        width = maxWidth;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    // Рисуем изображение на canvas с новыми размерами
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Конвертируем в base64 с заданным качеством
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                    resolve(compressedDataUrl);
+                };
+                img.onerror = reject;
+                img.src = e.target.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
     // Функция отправки файла (POST)
-    function uploadFile(index, clientIndex) {
+    async function uploadFile(index, clientIndex) {
         const file = getSelectedFile(index);
         if (!file) {
             const fileInput = document.getElementById('file' + index);
@@ -1074,75 +1041,79 @@
 
         const btn = document.querySelector(`#box${index} button`);
         btn.disabled = true;
-        btn.innerText = "ОТПРАВКА...";
+        btn.innerText = "СЖАТИЕ...";
         btn.style.animation = 'pulse 1.5s ease-in-out infinite';
-        showLoader(true);
+        showLoader(true, 'Сжатие изображения...');
 
-        const reader = new FileReader();
-        reader.onload = function(e) {
+        try {
+            // Сжимаем изображение перед отправкой
+            const compressedData = await compressImage(file, 1920, 0.8);
+            
+            btn.innerText = "ОТПРАВКА...";
+            showLoader(true, 'Отправка на сервер...');
+
             const payload = {
                 action: 'upload',
-                fileData: e.target.result,
+                fileData: compressedData,
                 clientData: {
                     ...clientData,
                     mpName: currentUser.mpName
                 }
             };
 
-            fetch(WEB_APP_URL, {
+            const response = await fetch(WEB_APP_URL, {
                 method: 'POST',
                 body: JSON.stringify(payload)
-            })
-            .then(res => res.json())
-            .then(res => {
-                showLoader(false);
-                if (res.success) {
-                    // Сохраняем информацию об отправленном чеке
-                    const month = document.getElementById('monthSelect').value;
-                    saveSentCheck(currentUser.mpName, month, clientData.client);
-                    
-                    // Обновляем статус в данных клиента
-                    if (window.clientsData && window.clientsData[clientIndex]) {
-                        window.clientsData[clientIndex].status = 'Отправлено';
-                    }
-                    
-                    // Очищаем выбранный файл
-                    clearFileSelection(index);
-                    
-                    const box = document.getElementById('box' + index);
-                    box.style.animation = 'scaleIn 0.4s ease-out';
-                    
-                    box.innerHTML = 
-                        `<div class="alert alert-success py-2 px-2 mb-0 text-center fw-bold small" style="animation: scaleIn 0.5s ease-out;">
-                            ✓ ЧЕК ОТПРАВЛЕН
-                        </div>`;
-                    
-                    // Обновляем счетчик статистики
-                    if (window.clientsData) {
-                        updateStatsCounter(window.clientsData);
-                    }
-                } else {
-                    btn.style.animation = 'shake 0.5s ease';
-                    setTimeout(() => {
-                        btn.style.animation = '';
-                    }, 500);
-                    showErrorModal("Ошибка: " + (res.error || "Не удалось отправить чек"));
-                    btn.disabled = false;
-                    btn.innerText = "ОТПРАВИТЬ ЧЕК";
+            });
+            
+            const res = await response.json();
+            showLoader(false);
+            
+            if (res.success) {
+                // Сохраняем информацию об отправленном чеке
+                const month = document.getElementById('monthSelect').value;
+                saveSentCheck(currentUser.mpName, month, clientData.client);
+                
+                // Обновляем статус в данных клиента
+                if (window.clientsData && window.clientsData[clientIndex]) {
+                    window.clientsData[clientIndex].status = 'Отправлено';
                 }
-            })
-            .catch(err => {
-                showLoader(false);
+                
+                // Очищаем выбранный файл
+                clearFileSelection(index);
+                
+                const box = document.getElementById('box' + index);
+                box.style.animation = 'scaleIn 0.4s ease-out';
+                
+                box.innerHTML = 
+                    `<div class="alert alert-success py-2 px-2 mb-0 text-center fw-bold small" style="animation: scaleIn 0.5s ease-out;">
+                        ✓ ЧЕК ОТПРАВЛЕН
+                    </div>`;
+                
+                // Обновляем счетчик статистики
+                if (window.clientsData) {
+                    updateStatsCounter(window.clientsData);
+                }
+            } else {
                 btn.style.animation = 'shake 0.5s ease';
                 setTimeout(() => {
                     btn.style.animation = '';
                 }, 500);
-                showErrorModal("Ошибка сети. Проверьте подключение к интернету и попробуйте снова.");
+                showErrorModal("Ошибка: " + (res.error || "Не удалось отправить чек"));
                 btn.disabled = false;
-                btn.innerText = "ОТПРАВИТЬ ЧЕК";
-            });
-        };
-        reader.readAsDataURL(file);
+                btn.innerText = "ОТПРАВИТЬ";
+            }
+        } catch (err) {
+            console.error("Ошибка при отправке файла:", err);
+            showLoader(false);
+            btn.style.animation = 'shake 0.5s ease';
+            setTimeout(() => {
+                btn.style.animation = '';
+            }, 500);
+            showErrorModal("Ошибка сети. Проверьте подключение к интернету и попробуйте снова.");
+            btn.disabled = false;
+            btn.innerText = "ОТПРАВИТЬ";
+        }
     }
 
     function showLoader(show, text = 'Загрузка данных...') { 
